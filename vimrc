@@ -30,6 +30,9 @@ call pathogen#helptags()
 filetype plugin indent on       " enable detection, plugins and indenting in one step
 syntax on
 
+" Change shell
+set shell=bash                  " Vim expects a POSIX-compliant shell, which Fish (my default shell) is not
+
 " Change the mapleader from \ to ,
 let mapleader=","
 let maplocalleader="\\"
@@ -74,6 +77,9 @@ set nrformats=                  " make <C-a> and <C-x> play well with
                                 "    zero-padded numbers (i.e. don't consider
                                 "    them octal or hex)
 
+set shortmess+=I                " hide the launch screen
+set clipboard=unnamed           " normal OS clipboard interaction
+
 " Toggle show/hide invisible chars
 nnoremap <leader>i :set list!<cr>
 
@@ -94,7 +100,7 @@ nnoremap <C-y> 2<C-y>
 set foldenable                  " enable folding
 set foldcolumn=2                " add a fold column
 set foldmethod=marker           " detect triple-{ style fold markers
-set foldlevelstart=99           " start out with everything folded
+set foldlevelstart=99           " start out with everything unfolded
 set foldopen=block,hor,insert,jump,mark,percent,quickfix,search,tag,undo
                                 " which commands trigger auto-unfold
 function! MyFoldText()
@@ -113,6 +119,14 @@ function! MyFoldText()
     return line . ' …' . repeat(" ",fillcharcount) . foldedlinecount . ' '
 endfunction
 set foldtext=MyFoldText()
+
+" Mappings to easily toggle fold levels
+nnoremap z0 :set foldlevel=0<cr>
+nnoremap z1 :set foldlevel=1<cr>
+nnoremap z2 :set foldlevel=2<cr>
+nnoremap z3 :set foldlevel=3<cr>
+nnoremap z4 :set foldlevel=4<cr>
+nnoremap z5 :set foldlevel=5<cr>
 " }}}
 
 " Editor layout {{{
@@ -217,6 +231,10 @@ nnoremap <leader>q :q<CR>
 vnoremap Q gq
 nnoremap Q gqap
 
+" Sort paragraphs
+vnoremap <leader>s !sort -f<CR>gv
+nnoremap <leader>s vip!sort -f<CR><Esc>
+
 " make p in Visual mode replace the selected text with the yank register
 vnoremap p <Esc>:let current_reg = @"<CR>gvdi<C-R>=current_reg<CR><Esc>
 
@@ -258,12 +276,6 @@ vnoremap <silent> <leader>d "_d
 " Quick yanking to the end of the line
 nnoremap Y y$
 
-" Yank/paste to the OS clipboard with ,y and ,p
-nnoremap <leader>y "+y
-nnoremap <leader>Y "+yy
-nnoremap <leader>p "+p
-nnoremap <leader>P "+P
-
 " YankRing stuff
 let g:yankring_history_dir = '$HOME/.vim/.tmp'
 nnoremap <leader>r :YRShow<CR>
@@ -289,12 +301,15 @@ nnoremap N N:call PulseCursorLine()<cr>
 inoremap jj <Esc>
 
 " Quick alignment of text
-nnoremap <leader>al :left<CR>
-nnoremap <leader>ar :right<CR>
-nnoremap <leader>ac :center<CR>
+" nnoremap <leader>al :left<CR>
+" nnoremap <leader>ar :right<CR>
+" nnoremap <leader>ac :center<CR>
 
 " Sudo to write
 cnoremap w!! w !sudo tee % >/dev/null
+
+" Ctrl+W to redraw
+nnoremap <C-w> :redraw!<cr>
 
 " Jump to matching pairs easily, with Tab
 nnoremap <Tab> %
@@ -304,12 +319,34 @@ vnoremap <Tab> %
 nnoremap <Space> za
 vnoremap <Space> za
 
-" Strip all trailing whitespace from a file, using ,w
+" Strip all trailing whitespace from a file, using ,W
 nnoremap <leader>W :%s/\s\+$//<CR>:let @/=''<CR>
 
-" Ack for the word under cursor
-"nnoremap <leader>a :Ack<Space>
-nnoremap <leader>a :Ack<Space><c-r><c-W>
+" Use The Silver Searcher over grep, iff possible
+if executable('ag')
+   " Use ag over grep
+   set grepprg=ag\ --nogroup\ --nocolor
+
+   " Use ag in CtrlP for listing files. Lightning fast and respects .gitignore
+   let g:ctrlp_user_command = 'ag %s -l --nocolor -g ""'
+
+   " ag is fast enough that CtrlP doesn't need to cache
+   let g:ctrlp_use_caching = 0
+endif
+
+" grep/Ack/Ag for the word under cursor
+vnoremap <leader>a y:grep! "\b<c-r>"\b"<cr>:cw<cr>
+nnoremap <leader>a :grep! "\b<c-r><c-w>\b"
+nnoremap K *N:grep! "\b<c-r><c-w>\b"<cr>:cw<cr>
+
+" Allow quick additions to the spelling dict
+nnoremap <leader>g :spellgood <c-r><c-w>
+
+" Define "Ag" command
+command -nargs=+ -complete=file -bar Ag silent! grep! <args> | cwindow | redraw!
+
+" bind \ (backward slash) to grep shortcut
+nnoremap \ :Ag<SPACE>
 
 " Creating folds for tags in HTML
 "nnoremap <leader>ft Vatzf
@@ -322,9 +359,7 @@ nnoremap <F5> :GundoToggle<CR>
 " }}}
 
 " NERDTree settings {{{
-" Put focus to the NERD Tree with F3 (tricked by quickly closing it and
-" immediately showing it again, since there is no :NERDTreeFocus command)
-nnoremap <leader>n :NERDTreeClose<CR>:NERDTreeToggle<CR>
+nnoremap <leader>n :NERDTreeFocus<CR>
 nnoremap <leader>m :NERDTreeClose<CR>:NERDTreeFind<CR>
 nnoremap <leader>N :NERDTreeClose<CR>
 
@@ -469,7 +504,6 @@ if has("autocmd")
 
         " PEP8 compliance (set 1 tab = 4 chars explicitly, even if set
         " earlier, as it is important)
-        autocmd filetype python setlocal expandtab shiftwidth=4 tabstop=4 softtabstop=4
         autocmd filetype python setlocal textwidth=78
         autocmd filetype python match ErrorMsg '\%>120v.\+'
 
@@ -486,14 +520,14 @@ if has("autocmd")
         autocmd filetype python noremap <buffer> <S-F5> :w<CR>:!ipython %<CR>
         autocmd filetype python inoremap <buffer> <S-F5> <Esc>:w<CR>:!ipython %<CR>
 
-        " Automatic insertion of breakpoints
-        autocmd filetype python nnoremap <buffer> <leader>bp :normal Oimport pdb; pdb.set_trace()<Esc>
-
         " Toggling True/False
         autocmd filetype python nnoremap <silent> <C-t> mmviw:s/True\\|False/\={'True':'False','False':'True'}[submatch(0)]/<CR>`m:nohlsearch<CR>
 
         " Run a quick static syntax check every time we save a Python file
         autocmd BufWritePost *.py call Flake8()
+
+        " Defer to isort for sorting headers (instead of using Unix sort)
+        autocmd filetype python nnoremap <leader>s :Isort<cr>
     augroup end " }}}
 
     augroup supervisord_files "{{{
@@ -511,7 +545,6 @@ if has("autocmd")
     augroup ruby_files "{{{
         au!
 
-        autocmd filetype ruby setlocal expandtab shiftwidth=2 tabstop=2 softtabstop=2
     augroup end " }}}
 
     augroup rst_files "{{{
@@ -625,7 +658,8 @@ if has("gui_running")
     "colorscheme wombat256
     "colorscheme mustang
     "colorscheme mustang_silent
-    colorscheme badwolf
+    "colorscheme badwolf
+    colorscheme jellybeans
 
     " Remove toolbar, left scrollbar and right scrollbar
     set guioptions-=T
@@ -645,6 +679,7 @@ else
     "colorscheme mustang
     "colorscheme mustang_silent
     "colorscheme badwolf
+    "colorscheme jellybeans
 endif
 
 " Pulse ------------------------------------------------------------------- {{{
@@ -699,8 +734,36 @@ let g:Powerline_symbols = 'fancy'
 " Don't run pylint on every save
 let g:pymode_lint = 0
 let g:pymode_lint_write = 0
+let g:pymode_breakpoint_key = '<leader>B'
 
 " }}}
+
+" Linters configuration -------------------------------------------------- {{{
+
+" Don't run linters for Python (conflicts with vim-flake8 and lint.vim plugins)
+let g:linters_disabled_filetypes = ['python', 'javascript']
+
+" To add more linters, do this:
+"
+" let g:linters_extra = []
+
+" if executable('jshint')
+"     let g:linters_extra += [
+"     \   ['javascript', 'jshint %s > %s', ["%f: line %l, col %c, %m"]],
+"     \]
+" endif
+
+" }}}
+
+" Ignore common directories
+let g:ctrlp_custom_ignore = {
+   \ 'dir': 'node_modules\|bower_components',
+   \ }
+
+" Invoke CtrlP, but CommandT style
+nnoremap <leader>t :CtrlP<cr>
+nnoremap <leader>. :CtrlPTag<cr>
+nnoremap <leader>b :CtrlPBuffer<cr>
 
 " Learn Vim Script the Hard Way Exercises
 "noremap - ddp
@@ -715,8 +778,8 @@ iabbr v@@ vincent@3rdcloud.com
 iabbr ssig --<cr>Vincent Driessen<cr>vincent@3rdcloud.com
 
 " Quote words under cursor
-nnoremap <leader>" viw<esc>a"<esc>hbi"<esc>lel
-nnoremap <leader>' viw<esc>a'<esc>hbi'<esc>lel
+nnoremap <leader>" viW<esc>a"<esc>gvo<esc>i"<esc>gvo<esc>3l
+nnoremap <leader>' viW<esc>a'<esc>gvo<esc>i'<esc>gvo<esc>3l
 
 " Quote current selection
 " TODO: This only works for selections that are created "forwardly"
@@ -753,3 +816,11 @@ nnoremap <leader>sl :execute "rightbelow vsplit" bufname('#')<cr>
 " Run tests
 inoremap <leader>w <esc>:write<cr>:!./run_tests.sh %<cr>
 nnoremap <leader>w :!./run_tests.sh<cr>
+
+" Rope config
+nnoremap <leader>A :RopeAutoImport<cr>
+
+" Switch from block-cursor to vertical-line-cursor when going into/out of
+" insert mode
+let &t_SI = "\<Esc>]50;CursorShape=1\x7"
+let &t_EI = "\<Esc>]50;CursorShape=0\x7"
